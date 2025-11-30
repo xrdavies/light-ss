@@ -5,12 +5,14 @@ A lightweight shadowsocks client written in Go that provides local HTTP/HTTPS an
 ## Features
 
 - **Shadowsocks Client**: Connect to any shadowsocks server with AEAD cipher support
-- **HTTP/HTTPS Proxy**: Local HTTP proxy with HTTPS CONNECT support
-- **SOCKS5 Proxy**: Standard SOCKS5 proxy server
+- **Unified Proxy Mode**: Single port for HTTP/HTTPS and SOCKS5 (like Clash)
+- **Separate Proxy Mode**: Dedicated ports for HTTP and SOCKS5
+- **Simple-obfs Plugin**: HTTP and TLS obfuscation support
+- **Command-line Parameters**: Run without config files - perfect for automation
+- **Config Converters**: Import from ss-local and Clash configurations
 - **Statistics Monitoring**: Track connections and bandwidth usage
-- **Debug Logging**: Verbose logging mode for troubleshooting
 - **Graceful Shutdown**: Proper cleanup on exit signals
-- **Easy Configuration**: YAML-based configuration with environment variable overrides
+- **Flexible Configuration**: YAML/JSON config files, environment variables, or CLI params
 
 ## Installation
 
@@ -32,10 +34,12 @@ go build -o light-ss ./cmd/light-ss
 
 ## Quick Start
 
+### Using Configuration File
+
 1. Create a configuration file:
 
 ```bash
-cp configs/config.yaml.example config.yaml
+cp config.yaml.example config.yaml
 ```
 
 2. Edit `config.yaml` with your shadowsocks server details:
@@ -45,6 +49,9 @@ shadowsocks:
   server: "your-server.com:8388"
   password: "your-password"
   cipher: "AEAD_CHACHA20_POLY1305"
+
+# Unified mode - single port for both HTTP and SOCKS5
+proxies: "127.0.0.1:1080"
 ```
 
 3. Start the client:
@@ -53,37 +60,74 @@ shadowsocks:
 ./light-ss start -c config.yaml
 ```
 
-4. Configure your applications to use the local proxies:
-   - HTTP/HTTPS: `http://127.0.0.1:8080`
-   - SOCKS5: `socks5://127.0.0.1:1080`
+4. Configure your applications to use the proxy at `127.0.0.1:1080`
+
+### Using Command-line Parameters (No Config File)
+
+```bash
+./light-ss start \
+  --server your-server.com \
+  --port 8388 \
+  --password your-password \
+  --method aes-128-gcm \
+  --proxies 127.0.0.1:1080
+```
+
+### With Simple-obfs Plugin
+
+```bash
+./light-ss start \
+  --server your-server.com \
+  --port 8388 \
+  --password your-password \
+  --method aes-128-gcm \
+  --plugin simple-obfs \
+  --plugin-obfs http \
+  --plugin-host www.bing.com \
+  --proxies 127.0.0.1:1080
+```
 
 ## Usage
 
 ### Start the Client
 
 ```bash
-# Start with config file
+# With config file
 ./light-ss start -c config.yaml
 
-# Start with debug logging
-./light-ss start -c config.yaml --log-level debug
+# With CLI parameters only
+./light-ss start -s server.com -p 8388 --password pass -m aes-128-gcm
 
-# View help
-./light-ss --help
+# Override config file values
+./light-ss start -c config.yaml --log-level debug --proxies 0.0.0.0:1080
+
+# View all available flags
 ./light-ss start --help
+```
+
+### Convert Existing Configurations
+
+```bash
+# Convert from ss-local format
+./light-ss convert --from ss-local --input ss-local.json --output config.json
+
+# Convert from Clash format
+./light-ss convert --from clash --input clash.yaml --output config.yaml
+
+# Print to stdout (JSON format)
+./light-ss convert --from ss-local --input ss-local.json
 ```
 
 ### Testing the Proxies
 
 ```bash
-# Test SOCKS5 proxy
+# Unified mode (single port for both protocols)
 curl -x socks5://127.0.0.1:1080 https://www.google.com
+curl -x http://127.0.0.1:1080 https://www.google.com
 
-# Test HTTP proxy
+# Separate mode
+curl -x socks5://127.0.0.1:1080 https://www.google.com
 curl -x http://127.0.0.1:8080 https://www.google.com
-
-# Test HTTPS through HTTP proxy
-curl -x http://127.0.0.1:8080 https://api.github.com
 ```
 
 ### Browser Configuration
@@ -93,12 +137,16 @@ curl -x http://127.0.0.1:8080 https://api.github.com
 2. SOCKS Host: `127.0.0.1`, Port: `1080`
 3. Check "SOCKS v5" and "Proxy DNS when using SOCKS v5"
 
+**Note:** With unified mode, both HTTP and SOCKS5 work on the same port!
+
 #### Chrome/Chromium
 ```bash
-# Linux/macOS
+# Unified mode - use either SOCKS5 or HTTP on same port
 chromium --proxy-server="socks5://127.0.0.1:1080"
+chromium --proxy-server="http://127.0.0.1:1080"
 
-# Or use HTTP proxy
+# Separate mode
+chromium --proxy-server="socks5://127.0.0.1:1080"
 chromium --proxy-server="http://127.0.0.1:8080"
 ```
 
@@ -106,7 +154,7 @@ chromium --proxy-server="http://127.0.0.1:8080"
 
 ### Configuration File
 
-The configuration file uses YAML format. See `configs/config.yaml.example` for a complete example.
+The configuration file supports both YAML and JSON formats. See `config.yaml.example` or `config.json.example` for complete examples.
 
 #### Shadowsocks Settings
 
@@ -116,27 +164,60 @@ shadowsocks:
   password: "your-password"           # Server password
   cipher: "AEAD_CHACHA20_POLY1305"   # Encryption cipher
   timeout: 300                        # Connection timeout (seconds)
+
+  # Optional: Simple-obfs plugin
+  plugin: "simple-obfs"
+  plugin_opts:
+    obfs: "http"                      # or "tls"
+    obfs-host: "www.bing.com"
 ```
 
 **Supported Ciphers:**
 - `AEAD_CHACHA20_POLY1305` (recommended)
 - `AEAD_AES_256_GCM`
 - `AEAD_AES_128_GCM`
+- `aes-128-gcm`, `aes-256-gcm`, `chacha20-poly1305` (auto-normalized)
 
 #### Proxy Settings
 
+**Unified Mode (Recommended):** Single port for both HTTP/HTTPS and SOCKS5
+
+```yaml
+# YAML format
+proxies: "127.0.0.1:1080"
+```
+
+```json
+// JSON format
+{
+  "proxies": "127.0.0.1:1080"
+}
+```
+
+**Separate Mode:** Dedicated ports for each protocol
+
+```yaml
+# YAML format
+proxies:
+  http: "127.0.0.1:8080"
+  socks5: "127.0.0.1:1080"
+```
+
+```json
+// JSON format
+{
+  "proxies": {
+    "http": "127.0.0.1:8080",
+    "socks5": "127.0.0.1:1080"
+  }
+}
+```
+
+**SOCKS5 with Authentication:**
+
 ```yaml
 proxies:
-  http:
-    enabled: true
-    listen: "127.0.0.1:8080"
-  socks5:
-    enabled: true
-    listen: "127.0.0.1:1080"
-    # Optional authentication
-    # auth:
-    #   username: "user"
-    #   password: "pass"
+  socks5: "user:pass@127.0.0.1:1080"
 ```
 
 #### Statistics
@@ -161,6 +242,54 @@ logging:
   format: "text"    # json, text
 ```
 
+### Command-line Parameters
+
+All configuration can be specified via command-line flags:
+
+```bash
+./light-ss start [flags]
+```
+
+**Shadowsocks Flags:**
+- `-s, --server string` - Shadowsocks server address
+- `-p, --port int` - Shadowsocks server port
+- `--password string` - Shadowsocks password
+- `-m, --method string` - Encryption method (aes-128-gcm, aes-256-gcm, chacha20-poly1305)
+- `--timeout int` - Connection timeout in seconds
+
+**Plugin Flags:**
+- `--plugin string` - Plugin name (e.g., simple-obfs)
+- `--plugin-obfs string` - Obfuscation mode: http or tls
+- `--plugin-host string` - Obfuscation host header
+
+**Proxy Flags:**
+- `--proxies string` - Unified proxy listen address (e.g., 127.0.0.1:1080)
+- `--http-proxy string` - HTTP/HTTPS proxy listen address
+- `--socks5-proxy string` - SOCKS5 proxy listen address (supports user:pass@host:port)
+
+**Other Flags:**
+- `-c, --config string` - Path to configuration file (optional)
+- `--log-level string` - Log level (debug, info, warn, error)
+
+**Examples:**
+
+```bash
+# Minimal setup
+./light-ss start -s server.com -p 8388 --password pass -m aes-128-gcm
+
+# With plugin
+./light-ss start \
+  -s server.com -p 8388 --password pass -m aes-128-gcm \
+  --plugin simple-obfs --plugin-obfs http --plugin-host www.bing.com
+
+# Separate proxy ports
+./light-ss start -s server.com -p 8388 --password pass -m aes-128-gcm \
+  --http-proxy 127.0.0.1:8080 --socks5-proxy 127.0.0.1:1080
+
+# Override config file
+./light-ss start -c config.yaml --log-level debug --proxies 0.0.0.0:1080
+```
+
 ### Environment Variables
 
 You can override configuration values using environment variables:
@@ -174,61 +303,87 @@ export LIGHT_SS_SOCKS5_LISTEN="127.0.0.1:1080"
 export LIGHT_SS_LOG_LEVEL="debug"
 ```
 
-### Command-line Flags
-
-```bash
-./light-ss start -c config.yaml --log-level debug
-```
-
 **Priority:** CLI flags > Environment variables > Config file > Defaults
 
 ## Architecture
 
+### Unified Mode (Default)
+
+Single port handles both HTTP/HTTPS and SOCKS5 through protocol detection:
+
 ```
-┌─────────────────────────────────────────────────────┐
-│              Client Applications                    │
-│         (Browser, curl, wget, etc.)                 │
-└──────────────┬──────────────────────────────────────┘
-               │
-               ├─────────────┬────────────────┐
-               │             │                │
-       ┌───────▼──────┐ ┌───▼────────┐       │
-       │ HTTP Proxy   │ │ SOCKS5     │       │
-       │ :8080        │ │ Proxy      │       │
-       │              │ │ :1080      │       │
-       └───────┬──────┘ └───┬────────┘       │
-               │            │                │
-               └────────┬───┘                │
-                        │                    │
-               ┌────────▼────────┐           │
-               │ Stats Collector │◄──────────┘
-               │ (Optional)      │
-               └────────┬────────┘
-                        │
-               ┌────────▼────────────┐
-               │ Shadowsocks Client  │
-               │ Dialer              │
-               └────────┬────────────┘
-                        │
-                        │ Encrypted
-                        │
-               ┌────────▼────────────┐
-               │ Shadowsocks Server  │
-               │ (Remote)            │
-               └────────┬────────────┘
-                        │
-               ┌────────▼────────────┐
-               │ Internet            │
-               └─────────────────────┘
+Client Apps → Unified Proxy:1080 → Stats → Shadowsocks+Plugin → Server → Internet
+              (HTTP or SOCKS5)
+```
+
+### Separate Mode (Optional)
+
+Dedicated ports for each protocol:
+
+```
+Client Apps → HTTP:8080 ────┐
+              SOCKS5:1080 ───┴→ Stats → Shadowsocks → Server → Internet
+```
+
+## Config Converters
+
+Light-ss can import configurations from other shadowsocks clients:
+
+### From ss-local (shadowsocks-libev)
+
+```bash
+# Convert and save
+./light-ss convert --from ss-local --input ss-local.json --output config.json
+
+# Print to stdout
+./light-ss convert --from ss-local --input ss-local.json
+```
+
+**ss-local format** (JSON):
+```json
+{
+  "server": "example.com",
+  "server_port": 8388,
+  "password": "password",
+  "method": "aes-128-gcm",
+  "plugin": "obfs-local",
+  "plugin_opts": "obfs=http;obfs-host=www.bing.com"
+}
+```
+
+### From Clash
+
+```bash
+# Convert to YAML
+./light-ss convert --from clash --input clash.yaml --output config.yaml
+
+# Convert to JSON
+./light-ss convert --from clash --input clash.yaml --output config.json
+```
+
+**Clash format** (YAML):
+```yaml
+proxies:
+  - name: "ss-server"
+    type: ss
+    server: example.com
+    port: 8388
+    cipher: aes-128-gcm
+    password: "password"
+    plugin: obfs
+    plugin-opts:
+      mode: http
+      host: www.bing.com
 ```
 
 ## Security Considerations
 
 1. **Cipher Selection**: Always use AEAD ciphers (ChaCha20-Poly1305 or AES-GCM)
-2. **Local Only**: Proxies bind to `127.0.0.1` by default - don't expose them publicly
-3. **Config File**: Protect your config file permissions: `chmod 600 config.yaml`
-4. **No Logging**: Sensitive data like passwords are never logged
-5. **HTTPS**: The client doesn't inspect HTTPS traffic - it only tunnels it
+2. **Plugin Obfuscation**: Use simple-obfs to disguise traffic as HTTP/TLS
+3. **Local Only**: Proxies bind to `127.0.0.1` by default - don't expose them publicly
+4. **Config File**: Protect your config file permissions: `chmod 600 config.yaml`
+5. **No Logging**: Sensitive data like passwords are never logged
+6. **HTTPS**: The client doesn't inspect HTTPS traffic - it only tunnels it
 
 ## Troubleshooting
 

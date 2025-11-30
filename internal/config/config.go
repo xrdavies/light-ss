@@ -127,6 +127,12 @@ func (p ProxiesConfig) MarshalYAML() (interface{}, error) {
 	return obj, nil
 }
 
+// ParseAuth extracts username:password from user:pass@host:port format
+// Modifies addr to remove the auth part
+func ParseAuth(addr *string) *AuthConfig {
+	return parseAuth(addr)
+}
+
 // parseAuth extracts username:password from user:pass@host:port format
 // Modifies addr to remove the auth part
 func parseAuth(addr *string) *AuthConfig {

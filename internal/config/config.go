@@ -14,6 +14,7 @@ type Config struct {
 	Proxies     ProxiesConfig     `yaml:"proxies" json:"proxies"`
 	Stats       StatsConfig       `yaml:"stats" json:"stats"`
 	Logging     LoggingConfig     `yaml:"logging" json:"logging"`
+	API         APIConfig         `yaml:"api" json:"api"`
 }
 
 // ProxiesConfig can be either a string (unified mode) or an object (separate mode)
@@ -204,6 +205,13 @@ type LoggingConfig struct {
 	Format string `yaml:"format" json:"format"` // Log format: json, text
 }
 
+// APIConfig contains management API configuration
+type APIConfig struct {
+	Enabled bool   `yaml:"enabled" json:"enabled"`             // Enable management API
+	Listen  string `yaml:"listen" json:"listen"`               // Listen address (e.g., "127.0.0.1:8090")
+	Token   string `yaml:"token" json:"token,omitempty"`       // Optional bearer token for authentication
+}
+
 // Validate checks if the configuration is valid
 func (c *Config) Validate() error {
 	// Handle server and port
@@ -253,6 +261,11 @@ func (c *Config) Validate() error {
 	// Set defaults for stats
 	if c.Stats.Interval == 0 {
 		c.Stats.Interval = 60
+	}
+
+	// Set defaults for API
+	if c.API.Listen == "" && c.API.Enabled {
+		c.API.Listen = "127.0.0.1:8090"
 	}
 
 	return nil

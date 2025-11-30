@@ -8,6 +8,81 @@ import (
 	"time"
 )
 
+// SpeedSample represents bandwidth measurement at a point in time
+type SpeedSample struct {
+	timestamp time.Time
+	sent      int64
+	received  int64
+}
+
+// SpeedTracker tracks bandwidth speed using a sliding window
+type SpeedTracker struct {
+	samples    []SpeedSample
+	windowSize time.Duration
+	mu         sync.RWMutex
+}
+
+// NewSpeedTracker creates a new speed tracker
+func NewSpeedTracker(windowSize time.Duration) *SpeedTracker {
+	return &SpeedTracker{
+		samples:    make([]SpeedSample, 0, 100), // Pre-allocate for efficiency
+		windowSize: windowSize,
+	}
+}
+
+// AddSample records a new speed sample
+func (st *SpeedTracker) AddSample(sent, received int64) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	now := time.Now()
+	st.samples = append(st.samples, SpeedSample{
+		timestamp: now,
+		sent:      sent,
+		received:  received,
+	})
+
+	// Remove samples outside the window
+	cutoff := now.Add(-st.windowSize)
+	validIdx := 0
+	for i, sample := range st.samples {
+		if sample.timestamp.After(cutoff) {
+			validIdx = i
+			break
+		}
+	}
+	if validIdx > 0 {
+		st.samples = st.samples[validIdx:]
+	}
+}
+
+// GetCurrentSpeed calculates current speed in bytes/sec
+func (st *SpeedTracker) GetCurrentSpeed() (uploadSpeed, downloadSpeed int64) {
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+
+	if len(st.samples) < 2 {
+		return 0, 0
+	}
+
+	// Get oldest and newest samples
+	oldest := st.samples[0]
+	newest := st.samples[len(st.samples)-1]
+
+	duration := newest.timestamp.Sub(oldest.timestamp).Seconds()
+	if duration == 0 {
+		return 0, 0
+	}
+
+	sentDiff := newest.sent - oldest.sent
+	receivedDiff := newest.received - oldest.received
+
+	uploadSpeed = int64(float64(sentDiff) / duration)
+	downloadSpeed = int64(float64(receivedDiff) / duration)
+
+	return uploadSpeed, downloadSpeed
+}
+
 // Collector collects statistics about connections and bandwidth
 type Collector struct {
 	mu sync.RWMutex
@@ -22,15 +97,52 @@ type Collector struct {
 	bytesSent     atomic.Int64
 	bytesReceived atomic.Int64
 
+	// Speed tracker
+	speedTracker *SpeedTracker
+
 	// Start time
 	startTime time.Time
+
+	// Background ticker for speed sampling
+	ticker *time.Ticker
+	done   chan struct{}
 }
 
 // NewCollector creates a new stats collector
 func NewCollector() *Collector {
-	return &Collector{
-		startTime: time.Now(),
+	c := &Collector{
+		startTime:    time.Now(),
+		speedTracker: NewSpeedTracker(10 * time.Second), // 10-second window
+		done:         make(chan struct{}),
 	}
+
+	// Start background speed sampling (every second)
+	c.ticker = time.NewTicker(1 * time.Second)
+	go c.sampleSpeed()
+
+	return c
+}
+
+// sampleSpeed records periodic speed samples
+func (c *Collector) sampleSpeed() {
+	for {
+		select {
+		case <-c.ticker.C:
+			sent := c.bytesSent.Load()
+			received := c.bytesReceived.Load()
+			c.speedTracker.AddSample(sent, received)
+		case <-c.done:
+			return
+		}
+	}
+}
+
+// Stop stops the speed sampling
+func (c *Collector) Stop() {
+	if c.ticker != nil {
+		c.ticker.Stop()
+	}
+	close(c.done)
 }
 
 // RecordConnection records a new connection
@@ -63,6 +175,8 @@ func (c *Collector) RecordBytesReceived(n int64) {
 
 // GetStats returns current statistics
 func (c *Collector) GetStats() Stats {
+	uploadSpeed, downloadSpeed := c.speedTracker.GetCurrentSpeed()
+
 	return Stats{
 		TotalConnections:   c.totalConnections.Load(),
 		ActiveConnections:  c.activeConnections.Load(),
@@ -70,6 +184,8 @@ func (c *Collector) GetStats() Stats {
 		SOCKS5Connections:  c.socks5Connections.Load(),
 		BytesSent:          c.bytesSent.Load(),
 		BytesReceived:      c.bytesReceived.Load(),
+		UploadSpeed:        uploadSpeed,
+		DownloadSpeed:      downloadSpeed,
 		Uptime:             time.Since(c.startTime),
 	}
 }
@@ -82,6 +198,8 @@ type Stats struct {
 	SOCKS5Connections  int64
 	BytesSent          int64
 	BytesReceived      int64
+	UploadSpeed        int64 // bytes/sec
+	DownloadSpeed      int64 // bytes/sec
 	Uptime             time.Duration
 }
 

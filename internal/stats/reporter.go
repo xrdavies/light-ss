@@ -60,8 +60,24 @@ func (r *Reporter) report() {
 		"socks5_connections", stats.SOCKS5Connections,
 		"bytes_sent", formatBytes(stats.BytesSent),
 		"bytes_received", formatBytes(stats.BytesReceived),
+		"upload_speed", formatSpeed(stats.UploadSpeed),
+		"download_speed", formatSpeed(stats.DownloadSpeed),
 		"uptime", stats.Uptime.Round(time.Second).String(),
 	)
+}
+
+// formatSpeed formats speed into a human-readable string
+func formatSpeed(bytesPerSec int64) string {
+	const unit = 1024
+	if bytesPerSec < unit {
+		return fmt.Sprintf("%d B/s", bytesPerSec)
+	}
+	div, exp := int64(unit), 0
+	for n := bytesPerSec / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB/s", float64(bytesPerSec)/float64(div), "KMGTPE"[exp])
 }
 
 // formatBytes formats bytes into a human-readable string

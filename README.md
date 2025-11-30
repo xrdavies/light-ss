@@ -11,6 +11,7 @@ A lightweight shadowsocks client written in Go that provides local HTTP/HTTPS an
 - **Command-line Parameters**: Run without config files - perfect for automation
 - **Config Converters**: Import from ss-local and Clash configurations
 - **Statistics Monitoring**: Track connections and bandwidth usage
+- **Management API**: REST API for monitoring, speed testing, and hot-reload
 - **Graceful Shutdown**: Proper cleanup on exit signals
 - **Flexible Configuration**: YAML/JSON config files, environment variables, or CLI params
 
@@ -324,6 +325,117 @@ Dedicated ports for each protocol:
 Client Apps → HTTP:8080 ────┐
               SOCKS5:1080 ───┴→ Stats → Shadowsocks → Server → Internet
 ```
+
+## Management API
+
+Light-ss provides a REST API for monitoring, configuration management, and control operations.
+
+### Enabling the API
+
+**Via Config File:**
+```yaml
+api:
+  enabled: true
+  listen: "127.0.0.1:8090"
+  token: "your-secret-token"  # Optional bearer token for authentication
+```
+
+**Via CLI Flags:**
+```bash
+./light-ss start -c config.yaml \
+  --api-enabled \
+  --api-listen 127.0.0.1:8090 \
+  --api-token secret123
+```
+
+### API Endpoints
+
+#### GET /health
+Health check endpoint - always returns 200 OK when running
+```bash
+curl http://127.0.0.1:8090/health
+# Response: {"status": "ok", "uptime": "2h30m15s"}
+```
+
+#### GET /version
+Get version and build information
+```bash
+curl http://127.0.0.1:8090/version
+# Response: {"version": "1.0.0", "commit": "abc123", "build_time": "2024-01-01"}
+```
+
+#### GET /stats
+Get current statistics (connections, bandwidth, real-time speed)
+```bash
+curl http://127.0.0.1:8090/stats
+# With authentication:
+curl -H "Authorization: Bearer secret123" http://127.0.0.1:8090/stats
+```
+
+Response includes:
+- Connection counts (total, active, HTTP, SOCKS5)
+- Bandwidth (bytes sent/received)
+- Current speed (download/upload in bytes/sec)
+- Uptime
+
+#### GET /speedtest
+Run active speed test through SS connection
+```bash
+# Default 10-second test
+curl http://127.0.0.1:8090/speedtest
+
+# Custom duration
+curl "http://127.0.0.1:8090/speedtest?duration=30"
+# Response: {"download_speed": 1234567, "latency_ms": 45, "test_duration_sec": 30}
+```
+
+#### GET /config
+Get current configuration (passwords sanitized)
+```bash
+curl http://127.0.0.1:8090/config
+# Passwords replaced with "***"
+```
+
+#### POST /reload
+Hot-reload shadowsocks configuration without restart
+```bash
+# Reload server configuration
+curl -X POST http://127.0.0.1:8090/reload \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer secret123" \
+  -d '{"server": "new-server.com:8388", "password": "newpass", "cipher": "aes-256-gcm"}'
+
+# Reload with plugin
+curl -X POST http://127.0.0.1:8090/reload \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer secret123" \
+  -d '{
+    "server": "new-server.com:8388",
+    "password": "newpass",
+    "cipher": "aes-256-gcm",
+    "plugin": "simple-obfs",
+    "plugin_opts": {
+      "obfs": "http",
+      "obfs-host": "www.bing.com"
+    }
+  }'
+```
+
+**Behavior:** Graceful reload - new connections use new config immediately, existing connections continue with old config until they close naturally.
+
+#### POST /stop
+Graceful shutdown of all servers
+```bash
+curl -X POST http://127.0.0.1:8090/stop \
+  -H "Authorization: Bearer secret123"
+```
+
+### API Security
+
+- **Bearer Token**: Optional authentication (disabled by default)
+- **Localhost Binding**: Binds to 127.0.0.1 by default for security
+- **Password Sanitization**: Passwords never exposed in API responses
+- **HTTPS**: Use a reverse proxy (nginx/caddy) for HTTPS if needed
 
 ## Config Converters
 

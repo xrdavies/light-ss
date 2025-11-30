@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/xrdavies/light-ss/internal/config"
 	"github.com/xrdavies/light-ss/internal/proxy"
@@ -20,6 +21,11 @@ type Manager struct {
 	collector    *stats.Collector
 	reporter     *stats.Reporter
 	config       *config.Config
+	apiServer    interface{} // Will be *api.Server, using interface{} to avoid circular dependency
+
+	// For hot-reload support
+	ssClientMu sync.RWMutex
+	oldClients []*shadowsocks.Client
 }
 
 // NewManager creates a new server manager
@@ -78,6 +84,13 @@ func NewManager(cfg *config.Config) (*Manager, error) {
 		}
 	}
 
+	// Create API server if enabled (imported locally to avoid circular dependency)
+	if cfg.API.Enabled {
+		// Import api package inline to avoid circular dependency
+		// This will be handled through interface{} type and late binding
+		slog.Info("API server will be initialized during startup", "address", cfg.API.Listen)
+	}
+
 	return mgr, nil
 }
 
@@ -127,6 +140,12 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		slog.Info("Statistics reporter stopped")
 	}
 
+	// Stop stats collector
+	if m.collector != nil {
+		m.collector.Stop()
+		slog.Info("Statistics collector stopped")
+	}
+
 	// Log final stats if collector exists
 	if m.collector != nil {
 		finalStats := m.collector.GetStats()
@@ -171,3 +190,65 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 
 	return nil
 }
+
+// GetConfig returns the current configuration
+func (m *Manager) GetConfig() *config.Config {
+	m.ssClientMu.RLock()
+	defer m.ssClientMu.RUnlock()
+	return m.config
+}
+
+// GetSSClient returns the shadowsocks client (thread-safe)
+func (m *Manager) GetSSClient() *shadowsocks.Client {
+	m.ssClientMu.RLock()
+	defer m.ssClientMu.RUnlock()
+	return m.ssClient
+}
+
+// GetCollector returns the stats collector
+func (m *Manager) GetCollector() *stats.Collector {
+	return m.collector
+}
+
+// ReloadConfig hot-reloads the shadowsocks configuration
+func (m *Manager) ReloadConfig(newConfig config.ShadowsocksConfig) error {
+	slog.Info("Reloading shadowsocks configuration", "server", newConfig.Server)
+
+	// Create new shadowsocks client
+	newClient, err := shadowsocks.NewClient(newConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create new SS client: %w", err)
+	}
+
+	// Acquire write lock
+	m.ssClientMu.Lock()
+	defer m.ssClientMu.Unlock()
+
+	// Save old client for graceful shutdown
+	if m.ssClient != nil {
+		m.oldClients = append(m.oldClients, m.ssClient)
+	}
+
+	// Swap to new client
+	oldClient := m.ssClient
+	m.ssClient = newClient
+
+	// Update configuration
+	m.config.Shadowsocks = newConfig
+
+	// Note: Proxy servers will use the new client for new connections
+	// Existing connections will continue using the old client until they close
+
+	slog.Info("Configuration reloaded successfully",
+		"old_server", func() string {
+			if oldClient != nil {
+				return "previous"
+			}
+			return "none"
+		}(),
+		"new_server", newConfig.Server,
+	)
+
+	return nil
+}
+

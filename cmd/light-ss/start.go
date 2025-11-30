@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/xrdavies/light-ss/internal/api"
 	"github.com/xrdavies/light-ss/internal/config"
 	"github.com/xrdavies/light-ss/internal/server"
 )
@@ -34,6 +35,11 @@ var (
 	proxies      string
 	httpProxy    string
 	socks5Proxy  string
+
+	// API parameters
+	apiEnabled bool
+	apiListen  string
+	apiToken   string
 
 	// Logging
 	logLevel string
@@ -66,6 +72,11 @@ func init() {
 	startCmd.Flags().StringVar(&proxies, "proxies", "", "Unified proxy listen address (e.g., 127.0.0.1:1080)")
 	startCmd.Flags().StringVar(&httpProxy, "http-proxy", "", "HTTP/HTTPS proxy listen address")
 	startCmd.Flags().StringVar(&socks5Proxy, "socks5-proxy", "", "SOCKS5 proxy listen address (supports user:pass@host:port)")
+
+	// API flags
+	startCmd.Flags().BoolVar(&apiEnabled, "api-enabled", false, "Enable management API")
+	startCmd.Flags().StringVar(&apiListen, "api-listen", "", "API listen address (e.g., 127.0.0.1:8090)")
+	startCmd.Flags().StringVar(&apiToken, "api-token", "", "API bearer token (optional)")
 
 	// Logging flags
 	startCmd.Flags().StringVar(&logLevel, "log-level", "", "Log level (debug, info, warn, error)")
@@ -118,6 +129,21 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	slog.Info("All servers started successfully")
 
+	// Create and start API server if enabled
+	var apiServer *api.Server
+	if cfg.API.Enabled {
+		speedTest := api.NewSpeedTest(mgr.GetSSClient())
+		apiServer = api.NewServer(cfg.API, mgr, mgr.GetCollector(), speedTest)
+
+		go func() {
+			if err := apiServer.Start(); err != nil {
+				slog.Error("API server error", "error", err)
+			}
+		}()
+
+		slog.Info("API server started", "address", cfg.API.Listen)
+	}
+
 	// Wait for shutdown signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -128,6 +154,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Graceful shutdown with 30 second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	// Shutdown API server first if it's running
+	if apiServer != nil {
+		if err := apiServer.Shutdown(ctx); err != nil {
+			slog.Error("Error shutting down API server", "error", err)
+		}
+	}
 
 	if err := mgr.Shutdown(ctx); err != nil {
 		slog.Error("Error during shutdown", "error", err)
@@ -196,6 +229,17 @@ func applyFlags(cfg *config.Config) {
 	// Logging flags
 	if logLevel != "" {
 		cfg.Logging.Level = logLevel
+	}
+
+	// API flags
+	if apiEnabled {
+		cfg.API.Enabled = true
+	}
+	if apiListen != "" {
+		cfg.API.Listen = apiListen
+	}
+	if apiToken != "" {
+		cfg.API.Token = apiToken
 	}
 }
 

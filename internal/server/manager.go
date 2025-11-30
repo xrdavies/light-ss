@@ -26,6 +26,10 @@ type Manager struct {
 	// For hot-reload support
 	ssClientMu sync.RWMutex
 	oldClients []*shadowsocks.Client
+
+	// For graceful shutdown
+	ctx        context.Context
+	cancelFunc context.CancelFunc
 }
 
 // NewManager creates a new server manager
@@ -45,11 +49,16 @@ func NewManager(cfg *config.Config) (*Manager, error) {
 		slog.Info("Statistics collection enabled", "interval", cfg.Stats.Interval)
 	}
 
+	// Create cancellable context for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+
 	mgr := &Manager{
-		ssClient:  ssClient,
-		collector: collector,
-		reporter:  reporter,
-		config:    cfg,
+		ssClient:   ssClient,
+		collector:  collector,
+		reporter:   reporter,
+		config:     cfg,
+		ctx:        ctx,
+		cancelFunc: cancel,
 	}
 
 	// Check if unified mode is enabled
@@ -105,7 +114,7 @@ func (m *Manager) Start() error {
 	// Start unified proxy if enabled
 	if m.unifiedProxy != nil {
 		go func() {
-			if err := m.unifiedProxy.Start(context.Background()); err != nil {
+			if err := m.unifiedProxy.Start(m.ctx); err != nil {
 				slog.Error("Unified proxy error", "error", err)
 			}
 		}()
@@ -133,6 +142,11 @@ func (m *Manager) Start() error {
 // Shutdown gracefully shuts down all servers
 func (m *Manager) Shutdown(ctx context.Context) error {
 	slog.Info("Initiating graceful shutdown")
+
+	// Cancel context to signal all goroutines to stop
+	if m.cancelFunc != nil {
+		m.cancelFunc()
+	}
 
 	// Stop stats reporter first
 	if m.reporter != nil {

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/xrdavies/light-ss/internal/api"
 	"github.com/xrdavies/light-ss/internal/config"
+	"github.com/xrdavies/light-ss/internal/mgmt"
 	"github.com/xrdavies/light-ss/internal/server"
 )
 
@@ -130,10 +130,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 	slog.Info("All servers started successfully")
 
 	// Create and start API server if enabled
-	var apiServer *api.Server
+	var apiServer *mgmt.Server
 	if cfg.API.Enabled {
-		speedTest := api.NewSpeedTest(mgr.GetSSClient())
-		apiServer = api.NewServer(cfg.API, mgr, mgr.GetCollector(), speedTest)
+		speedTest := mgmt.NewSpeedTest(mgr.GetSSClient())
+		apiServer = mgmt.NewServer(cfg.API, mgr, mgr.GetCollector(), speedTest)
 
 		go func() {
 			if err := apiServer.Start(); err != nil {

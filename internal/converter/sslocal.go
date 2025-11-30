@@ -44,13 +44,7 @@ func FromSSLocal(inputPath string) (*config.Config, error) {
 			Timeout:  ssConfig.Timeout,
 		},
 		Proxies: config.ProxiesConfig{
-			HTTP: config.HTTPProxyConfig{
-				Enabled: false, // ss-local doesn't have HTTP proxy
-			},
-			SOCKS5: config.SOCKS5ProxyConfig{
-				Enabled: true,
-				Listen:  fmt.Sprintf("%s:%d", ssConfig.LocalAddress, ssConfig.LocalPort),
-			},
+			SOCKS5Listen: fmt.Sprintf("%s:%d", ssConfig.LocalAddress, ssConfig.LocalPort),
 		},
 		Stats: config.StatsConfig{
 			Enabled:  false,

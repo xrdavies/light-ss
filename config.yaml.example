@@ -9,20 +9,16 @@ shadowsocks:
   timeout: 300                        # Connection timeout in seconds
 
 # Local Proxy Configuration
-proxies:
-  # HTTP/HTTPS Proxy
-  http:
-    enabled: true                     # Enable HTTP/HTTPS proxy
-    listen: "127.0.0.1:8080"         # Listen address and port
+# Unified Mode: Single port for both HTTP/HTTPS and SOCKS5 (like Clash)
+proxies: "127.0.0.1:1080"
 
-  # SOCKS5 Proxy
-  socks5:
-    enabled: true                     # Enable SOCKS5 proxy
-    listen: "127.0.0.1:1080"         # Listen address and port
-    # Optional authentication (uncomment to enable)
-    # auth:
-    #   username: "user"
-    #   password: "pass"
+# Separate Mode: Dedicated ports for each protocol
+# Comment out the line above and uncomment the lines below to use separate mode
+# proxies:
+#   http: "127.0.0.1:8080"           # HTTP/HTTPS proxy listen address
+#   socks5: "127.0.0.1:1080"         # SOCKS5 proxy listen address
+#   # Optional: SOCKS5 with authentication (user:pass@host:port)
+#   # socks5: "user:pass@127.0.0.1:1080"
 
 # Statistics Configuration
 stats:

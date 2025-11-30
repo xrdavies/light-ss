@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/elazarl/goproxy"
-	"github.com/xrdavies/light-ss/internal/config"
 	"github.com/xrdavies/light-ss/internal/shadowsocks"
 	"github.com/xrdavies/light-ss/internal/stats"
 )
@@ -22,7 +21,7 @@ type HTTPServer struct {
 }
 
 // NewHTTPServer creates a new HTTP/HTTPS proxy server
-func NewHTTPServer(cfg config.HTTPProxyConfig, ssClient *shadowsocks.Client, collector *stats.Collector) (*HTTPServer, error) {
+func NewHTTPServer(listen string, ssClient *shadowsocks.Client, collector *stats.Collector) (*HTTPServer, error) {
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.Verbose = false
 
@@ -51,14 +50,14 @@ func NewHTTPServer(cfg config.HTTPProxyConfig, ssClient *shadowsocks.Client, col
 	}))
 
 	server := &http.Server{
-		Addr:    cfg.Listen,
+		Addr:    listen,
 		Handler: proxy,
 	}
 
 	return &HTTPServer{
 		server:     server,
 		proxy:      proxy,
-		listenAddr: cfg.Listen,
+		listenAddr: listen,
 		ssClient:   ssClient,
 		collector:  collector,
 	}, nil

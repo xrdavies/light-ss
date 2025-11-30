@@ -22,15 +22,15 @@
     }
   },
 
-  "proxies": {
-    "http": {
-      "enabled": true,
-      "listen": "127.0.0.1:8080"
-    },
-    "socks5": {
-      "enabled": true,
-      "listen": "127.0.0.1:1080"
-    }
+  "_proxies_comment": "Proxies can be configured in two modes:",
+  "_unified_mode": "Single port for both HTTP/HTTPS and SOCKS5 (like Clash)",
+  "proxies": "127.0.0.1:1080",
+
+  "_separate_mode_example": "Or use separate ports (comment out unified mode above to use this)",
+  "_proxies_separate": {
+    "http": "127.0.0.1:8080",
+    "socks5": "127.0.0.1:1080",
+    "_socks5_with_auth": "user:pass@127.0.0.1:1080"
   },
 
   "stats": {

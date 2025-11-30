@@ -13,6 +13,7 @@ import (
 
 // Manager manages all proxy servers and their lifecycle
 type Manager struct {
+	unifiedProxy *proxy.UnifiedProxy
 	httpServer   *proxy.HTTPServer
 	socks5Server *proxy.SOCKS5Server
 	ssClient     *shadowsocks.Client
@@ -45,22 +46,36 @@ func NewManager(cfg *config.Config) (*Manager, error) {
 		config:    cfg,
 	}
 
-	// Create HTTP proxy if enabled
-	if cfg.Proxies.HTTP.Enabled {
-		httpServer, err := proxy.NewHTTPServer(cfg.Proxies.HTTP, ssClient, collector)
+	// Check if unified mode is enabled
+	if cfg.Proxies.Unified != "" {
+		// Create unified proxy for both HTTP/HTTPS and SOCKS5
+		unifiedProxy, err := proxy.NewUnifiedProxy(cfg.Proxies.Unified, ssClient, collector)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create HTTP server: %w", err)
+			return nil, fmt.Errorf("failed to create unified proxy: %w", err)
 		}
-		mgr.httpServer = httpServer
-	}
+		mgr.unifiedProxy = unifiedProxy
+		slog.Info("Using unified proxy mode", "address", cfg.Proxies.Unified)
+	} else {
+		// Separate mode: create HTTP and SOCKS5 proxies separately
+		// Create HTTP proxy if enabled
+		if cfg.Proxies.HTTPListen != "" {
+			httpServer, err := proxy.NewHTTPServer(cfg.Proxies.HTTPListen, ssClient, collector)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create HTTP server: %w", err)
+			}
+			mgr.httpServer = httpServer
+			slog.Info("HTTP/HTTPS proxy enabled", "address", cfg.Proxies.HTTPListen)
+		}
 
-	// Create SOCKS5 proxy if enabled
-	if cfg.Proxies.SOCKS5.Enabled {
-		socks5Server, err := proxy.NewSOCKS5Server(cfg.Proxies.SOCKS5, ssClient, collector)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create SOCKS5 server: %w", err)
+		// Create SOCKS5 proxy if enabled
+		if cfg.Proxies.SOCKS5Listen != "" {
+			socks5Server, err := proxy.NewSOCKS5Server(cfg.Proxies.SOCKS5Listen, cfg.Proxies.SOCKS5Auth, ssClient, collector)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create SOCKS5 server: %w", err)
+			}
+			mgr.socks5Server = socks5Server
+			slog.Info("SOCKS5 proxy enabled", "address", cfg.Proxies.SOCKS5Listen)
 		}
-		mgr.socks5Server = socks5Server
 	}
 
 	return mgr, nil
@@ -68,6 +83,23 @@ func NewManager(cfg *config.Config) (*Manager, error) {
 
 // Start starts all enabled proxy servers
 func (m *Manager) Start() error {
+	// Start stats reporter if enabled
+	if m.reporter != nil {
+		m.reporter.Start()
+		slog.Info("Statistics reporter started")
+	}
+
+	// Start unified proxy if enabled
+	if m.unifiedProxy != nil {
+		go func() {
+			if err := m.unifiedProxy.Start(context.Background()); err != nil {
+				slog.Error("Unified proxy error", "error", err)
+			}
+		}()
+		return nil
+	}
+
+	// Otherwise start HTTP and SOCKS5 proxies separately
 	// Start HTTP proxy if enabled
 	if m.httpServer != nil {
 		if err := m.httpServer.Start(); err != nil {
@@ -80,12 +112,6 @@ func (m *Manager) Start() error {
 		if err := m.socks5Server.Start(); err != nil {
 			return fmt.Errorf("failed to start SOCKS5 server: %w", err)
 		}
-	}
-
-	// Start stats reporter if enabled
-	if m.reporter != nil {
-		m.reporter.Start()
-		slog.Info("Statistics reporter started")
 	}
 
 	return nil
@@ -113,6 +139,16 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			"bytes_received", finalStats.BytesReceived,
 			"uptime", finalStats.Uptime.String(),
 		)
+	}
+
+	// Stop unified proxy if enabled
+	if m.unifiedProxy != nil {
+		if err := m.unifiedProxy.Shutdown(ctx); err != nil {
+			slog.Error("Error stopping unified proxy", "error", err)
+		} else {
+			slog.Info("Unified proxy stopped")
+		}
+		return nil
 	}
 
 	// Stop HTTP proxy

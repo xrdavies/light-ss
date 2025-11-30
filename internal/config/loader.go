@@ -74,10 +74,10 @@ func applyEnvOverrides(cfg *Config) {
 		cfg.Shadowsocks.Cipher = cipher
 	}
 	if httpListen := os.Getenv("LIGHT_SS_HTTP_LISTEN"); httpListen != "" {
-		cfg.Proxies.HTTP.Listen = httpListen
+		cfg.Proxies.HTTPListen = httpListen
 	}
 	if socks5Listen := os.Getenv("LIGHT_SS_SOCKS5_LISTEN"); socks5Listen != "" {
-		cfg.Proxies.SOCKS5.Listen = socks5Listen
+		cfg.Proxies.SOCKS5Listen = socks5Listen
 	}
 	if logLevel := os.Getenv("LIGHT_SS_LOG_LEVEL"); logLevel != "" {
 		cfg.Logging.Level = logLevel

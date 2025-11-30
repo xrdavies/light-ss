@@ -22,7 +22,7 @@ type SOCKS5Server struct {
 }
 
 // NewSOCKS5Server creates a new SOCKS5 proxy server
-func NewSOCKS5Server(cfg config.SOCKS5ProxyConfig, ssClient *shadowsocks.Client, collector *stats.Collector) (*SOCKS5Server, error) {
+func NewSOCKS5Server(listen string, auth *config.AuthConfig, ssClient *shadowsocks.Client, collector *stats.Collector) (*SOCKS5Server, error) {
 	conf := &socks5.Config{
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			conn, err := ssClient.DialContext(ctx, network, addr)
@@ -40,13 +40,13 @@ func NewSOCKS5Server(cfg config.SOCKS5ProxyConfig, ssClient *shadowsocks.Client,
 	}
 
 	// Add authentication if configured
-	if cfg.Auth != nil {
+	if auth != nil {
 		credentials := socks5.StaticCredentials{
-			cfg.Auth.Username: cfg.Auth.Password,
+			auth.Username: auth.Password,
 		}
 		authenticator := socks5.UserPassAuthenticator{Credentials: credentials}
 		conf.AuthMethods = []socks5.Authenticator{authenticator}
-		slog.Info("SOCKS5 authentication enabled", "username", cfg.Auth.Username)
+		slog.Info("SOCKS5 authentication enabled", "username", auth.Username)
 	}
 
 	server, err := socks5.New(conf)
@@ -56,7 +56,7 @@ func NewSOCKS5Server(cfg config.SOCKS5ProxyConfig, ssClient *shadowsocks.Client,
 
 	return &SOCKS5Server{
 		server:     server,
-		listenAddr: cfg.Listen,
+		listenAddr: listen,
 		ssClient:   ssClient,
 		collector:  collector,
 	}, nil

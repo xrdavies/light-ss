@@ -1,8 +1,11 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Config is the main configuration structure
@@ -11,6 +14,152 @@ type Config struct {
 	Proxies     ProxiesConfig     `yaml:"proxies" json:"proxies"`
 	Stats       StatsConfig       `yaml:"stats" json:"stats"`
 	Logging     LoggingConfig     `yaml:"logging" json:"logging"`
+}
+
+// ProxiesConfig can be either a string (unified mode) or an object (separate mode)
+type ProxiesConfig struct {
+	// Internal parsed values
+	Unified      string
+	HTTPListen   string
+	SOCKS5Listen string
+	SOCKS5Auth   *AuthConfig
+}
+
+// UnmarshalJSON handles both string and object formats for proxies
+func (p *ProxiesConfig) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string first (unified mode)
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		p.Unified = str
+		return nil
+	}
+
+	// Otherwise, unmarshal as object (separate mode)
+	var obj struct {
+		HTTP   string `json:"http"`
+		SOCKS5 string `json:"socks5"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+
+	p.HTTPListen = obj.HTTP
+	p.SOCKS5Listen = obj.SOCKS5
+
+	// Parse SOCKS5 auth if present (user:pass@host:port)
+	if p.SOCKS5Listen != "" {
+		p.SOCKS5Auth = parseAuth(&p.SOCKS5Listen)
+	}
+
+	return nil
+}
+
+// UnmarshalYAML handles both string and object formats for proxies
+func (p *ProxiesConfig) UnmarshalYAML(value *yaml.Node) error {
+	// Try to unmarshal as string first (unified mode)
+	var str string
+	if err := value.Decode(&str); err == nil {
+		p.Unified = str
+		return nil
+	}
+
+	// Otherwise, unmarshal as object (separate mode)
+	var obj struct {
+		HTTP   string `yaml:"http"`
+		SOCKS5 string `yaml:"socks5"`
+	}
+	if err := value.Decode(&obj); err != nil {
+		return err
+	}
+
+	p.HTTPListen = obj.HTTP
+	p.SOCKS5Listen = obj.SOCKS5
+
+	// Parse SOCKS5 auth if present (user:pass@host:port)
+	if p.SOCKS5Listen != "" {
+		p.SOCKS5Auth = parseAuth(&p.SOCKS5Listen)
+	}
+
+	return nil
+}
+
+// MarshalJSON handles marshaling back to JSON
+func (p ProxiesConfig) MarshalJSON() ([]byte, error) {
+	if p.Unified != "" {
+		return json.Marshal(p.Unified)
+	}
+
+	obj := map[string]string{}
+	if p.HTTPListen != "" {
+		obj["http"] = p.HTTPListen
+	}
+	if p.SOCKS5Listen != "" {
+		// Add auth back if present
+		if p.SOCKS5Auth != nil {
+			obj["socks5"] = fmt.Sprintf("%s:%s@%s", p.SOCKS5Auth.Username, p.SOCKS5Auth.Password, p.SOCKS5Listen)
+		} else {
+			obj["socks5"] = p.SOCKS5Listen
+		}
+	}
+
+	return json.Marshal(obj)
+}
+
+// MarshalYAML handles marshaling back to YAML
+func (p ProxiesConfig) MarshalYAML() (interface{}, error) {
+	if p.Unified != "" {
+		return p.Unified, nil
+	}
+
+	obj := map[string]string{}
+	if p.HTTPListen != "" {
+		obj["http"] = p.HTTPListen
+	}
+	if p.SOCKS5Listen != "" {
+		// Add auth back if present
+		if p.SOCKS5Auth != nil {
+			obj["socks5"] = fmt.Sprintf("%s:%s@%s", p.SOCKS5Auth.Username, p.SOCKS5Auth.Password, p.SOCKS5Listen)
+		} else {
+			obj["socks5"] = p.SOCKS5Listen
+		}
+	}
+
+	return obj, nil
+}
+
+// parseAuth extracts username:password from user:pass@host:port format
+// Modifies addr to remove the auth part
+func parseAuth(addr *string) *AuthConfig {
+	if addr == nil || *addr == "" {
+		return nil
+	}
+
+	// Look for @ symbol
+	atIndex := strings.LastIndex(*addr, "@")
+	if atIndex == -1 {
+		return nil
+	}
+
+	// Extract auth part (before @)
+	authPart := (*addr)[:atIndex]
+	hostPart := (*addr)[atIndex+1:]
+
+	// Split auth into username:password
+	colonIndex := strings.Index(authPart, ":")
+	if colonIndex == -1 {
+		return nil
+	}
+
+	username := authPart[:colonIndex]
+	password := authPart[colonIndex+1:]
+
+	// Update addr to only contain host:port
+	*addr = hostPart
+
+	return &AuthConfig{
+		Username: username,
+		Password: password,
+	}
 }
 
 // ShadowsocksConfig contains shadowsocks server configuration
@@ -29,25 +178,6 @@ type ShadowsocksConfig struct {
 type PluginOpts struct {
 	Obfs     string `yaml:"obfs" json:"obfs,omitempty"`           // Obfuscation mode: http, tls
 	ObfsHost string `yaml:"obfs-host" json:"obfs-host,omitempty"` // Host header for HTTP obfuscation
-}
-
-// ProxiesConfig contains configuration for local proxy servers
-type ProxiesConfig struct {
-	HTTP   HTTPProxyConfig   `yaml:"http" json:"http"`
-	SOCKS5 SOCKS5ProxyConfig `yaml:"socks5" json:"socks5"`
-}
-
-// HTTPProxyConfig contains HTTP/HTTPS proxy configuration
-type HTTPProxyConfig struct {
-	Enabled bool   `yaml:"enabled" json:"enabled"` // Enable HTTP/HTTPS proxy
-	Listen  string `yaml:"listen" json:"listen"`   // Listen address (e.g., "127.0.0.1:8080")
-}
-
-// SOCKS5ProxyConfig contains SOCKS5 proxy configuration
-type SOCKS5ProxyConfig struct {
-	Enabled bool        `yaml:"enabled" json:"enabled"` // Enable SOCKS5 proxy
-	Listen  string      `yaml:"listen" json:"listen"`   // Listen address (e.g., "127.0.0.1:1080")
-	Auth    *AuthConfig `yaml:"auth" json:"auth,omitempty"` // Optional authentication
 }
 
 // AuthConfig contains authentication credentials for proxies
@@ -100,19 +230,10 @@ func (c *Config) Validate() error {
 		c.Shadowsocks.Timeout = 300 // Default 5 minutes
 	}
 
-	// Enable proxies by default if not specified
-	if !c.Proxies.HTTP.Enabled && !c.Proxies.SOCKS5.Enabled {
-		// If Proxies section is empty, enable both by default
-		c.Proxies.HTTP.Enabled = true
-		c.Proxies.SOCKS5.Enabled = true
-	}
-
-	if c.Proxies.HTTP.Enabled && c.Proxies.HTTP.Listen == "" {
-		c.Proxies.HTTP.Listen = "127.0.0.1:8080" // Default HTTP listen
-	}
-
-	if c.Proxies.SOCKS5.Enabled && c.Proxies.SOCKS5.Listen == "" {
-		c.Proxies.SOCKS5.Listen = "127.0.0.1:1080" // Default SOCKS5 listen
+	// Set defaults for proxies if not specified
+	if c.Proxies.Unified == "" && c.Proxies.HTTPListen == "" && c.Proxies.SOCKS5Listen == "" {
+		// If no proxy configuration specified, enable unified mode by default
+		c.Proxies.Unified = "127.0.0.1:1080"
 	}
 
 	// Set defaults for logging

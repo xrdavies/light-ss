@@ -62,14 +62,7 @@ func FromClash(inputPath string) (*config.Config, error) {
 			Timeout:  300, // Default timeout
 		},
 		Proxies: config.ProxiesConfig{
-			HTTP: config.HTTPProxyConfig{
-				Enabled: true,
-				Listen:  "127.0.0.1:8080",
-			},
-			SOCKS5: config.SOCKS5ProxyConfig{
-				Enabled: true,
-				Listen:  "127.0.0.1:1080",
-			},
+			Unified: "127.0.0.1:1080", // Clash uses unified port
 		},
 		Stats: config.StatsConfig{
 			Enabled:  true,

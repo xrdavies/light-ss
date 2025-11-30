@@ -18,7 +18,7 @@ import (
 // UnifiedProxy serves both HTTP/HTTPS and SOCKS5 on a single port
 type UnifiedProxy struct {
 	listen     string
-	ssClient   *shadowsocks.Client
+	getClient  func() *shadowsocks.Client // Function to get current client (for hot-reload)
 	collector  *stats.Collector
 	listener   net.Listener
 	httpProxy  *goproxy.ProxyHttpServer
@@ -26,13 +26,19 @@ type UnifiedProxy struct {
 }
 
 // NewUnifiedProxy creates a unified proxy that handles both protocols
-func NewUnifiedProxy(listen string, ssClient *shadowsocks.Client, collector *stats.Collector) (*UnifiedProxy, error) {
+func NewUnifiedProxy(listen string, getClient func() *shadowsocks.Client, collector *stats.Collector) (*UnifiedProxy, error) {
+	u := &UnifiedProxy{
+		listen:    listen,
+		getClient: getClient,
+		collector: collector,
+	}
+
 	// Setup HTTP proxy
 	httpProxy := goproxy.NewProxyHttpServer()
 	httpProxy.Verbose = false
 	httpProxy.Tr = &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			conn, err := ssClient.DialContext(ctx, network, addr)
+			conn, err := u.getClient().DialContext(ctx, network, addr)
 			if err != nil {
 				return nil, err
 			}
@@ -47,7 +53,7 @@ func NewUnifiedProxy(listen string, ssClient *shadowsocks.Client, collector *sta
 	// Setup SOCKS5 config
 	socks5Conf := &socks5.Config{
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			conn, err := ssClient.DialContext(ctx, network, addr)
+			conn, err := u.getClient().DialContext(ctx, network, addr)
 			if err != nil {
 				return nil, err
 			}
@@ -58,13 +64,10 @@ func NewUnifiedProxy(listen string, ssClient *shadowsocks.Client, collector *sta
 		},
 	}
 
-	return &UnifiedProxy{
-		listen:     listen,
-		ssClient:   ssClient,
-		collector:  collector,
-		httpProxy:  httpProxy,
-		socks5Conf: socks5Conf,
-	}, nil
+	u.httpProxy = httpProxy
+	u.socks5Conf = socks5Conf
+
+	return u, nil
 }
 
 // Start begins listening and serving both protocols
@@ -177,7 +180,7 @@ func (u *UnifiedProxy) handleConnect(clientConn net.Conn, req *http.Request) {
 	defer clientConn.Close()
 
 	// Connect to target through shadowsocks
-	targetConn, err := u.ssClient.DialContext(context.Background(), "tcp", req.Host)
+	targetConn, err := u.getClient().DialContext(context.Background(), "tcp", req.Host)
 	if err != nil {
 		slog.Error("failed to connect to target", "host", req.Host, "error", err)
 		fmt.Fprintf(clientConn, "HTTP/1.1 502 Bad Gateway\r\n\r\n")

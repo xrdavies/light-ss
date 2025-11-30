@@ -64,7 +64,7 @@ func NewManager(cfg *config.Config) (*Manager, error) {
 	// Check if unified mode is enabled
 	if cfg.Proxies.Unified != "" {
 		// Create unified proxy for both HTTP/HTTPS and SOCKS5
-		unifiedProxy, err := proxy.NewUnifiedProxy(cfg.Proxies.Unified, ssClient, collector)
+		unifiedProxy, err := proxy.NewUnifiedProxy(cfg.Proxies.Unified, mgr.GetSSClient, collector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create unified proxy: %w", err)
 		}

@@ -1,0 +1,35 @@
+# Light Shadowsocks Client Configuration
+
+# Shadowsocks Server Configuration
+shadowsocks:
+  server: "example.com:8388"          # Shadowsocks server address and port
+  password: "your-strong-password"    # Server password
+  cipher: "AEAD_CHACHA20_POLY1305"   # Encryption cipher
+  # Supported ciphers: AEAD_CHACHA20_POLY1305, AEAD_AES_256_GCM, AEAD_AES_128_GCM
+  timeout: 300                        # Connection timeout in seconds
+
+# Local Proxy Configuration
+proxies:
+  # HTTP/HTTPS Proxy
+  http:
+    enabled: true                     # Enable HTTP/HTTPS proxy
+    listen: "127.0.0.1:8080"         # Listen address and port
+
+  # SOCKS5 Proxy
+  socks5:
+    enabled: true                     # Enable SOCKS5 proxy
+    listen: "127.0.0.1:1080"         # Listen address and port
+    # Optional authentication (uncomment to enable)
+    # auth:
+    #   username: "user"
+    #   password: "pass"
+
+# Statistics Configuration
+stats:
+  enabled: true                       # Enable statistics collection
+  interval: 60                        # Report interval in seconds
+
+# Logging Configuration
+logging:
+  level: "info"                       # Log level: debug, info, warn, error
+  format: "text"                      # Log format: json, text

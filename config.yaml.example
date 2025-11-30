@@ -29,3 +29,9 @@ stats:
 logging:
   level: "info"                       # Log level: debug, info, warn, error
   format: "text"                      # Log format: json, text
+
+# Management API Configuration (optional)
+api:
+  enabled: false                      # Enable/disable management API
+  listen: "127.0.0.1:8090"           # API server listen address
+  # token: "your-secret-token-here"  # Optional bearer token for authentication

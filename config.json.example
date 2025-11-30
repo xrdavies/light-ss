@@ -41,5 +41,13 @@
   "logging": {
     "level": "info",
     "format": "text"
+  },
+
+  "_api_comment": "Management API Configuration (optional)",
+  "api": {
+    "enabled": false,
+    "listen": "127.0.0.1:8090",
+    "_token_comment": "Optional bearer token for authentication. If not set, no authentication is required",
+    "_token": "your-secret-token-here"
   }
 }

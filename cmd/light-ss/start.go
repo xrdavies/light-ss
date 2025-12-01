@@ -133,7 +133,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	var apiServer *mgmt.Server
 	if cfg.API.Enabled {
 		speedTest := mgmt.NewSpeedTest(mgr.GetSSClient())
-		apiServer = mgmt.NewServer(cfg.API, mgr, mgr.GetCollector(), speedTest)
+		apiServer = mgmt.NewServer(cfg, mgr, mgr.GetCollector(), speedTest)
 
 		go func() {
 			if err := apiServer.Start(); err != nil {

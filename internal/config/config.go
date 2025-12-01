@@ -10,6 +10,7 @@ import (
 
 // Config is the main configuration structure
 type Config struct {
+	Name        string            `yaml:"name" json:"name,omitempty"`           // Optional instance name
 	Shadowsocks ShadowsocksConfig `yaml:"shadowsocks" json:"shadowsocks"`
 	Proxies     ProxiesConfig     `yaml:"proxies" json:"proxies"`
 	Stats       StatsConfig       `yaml:"stats" json:"stats"`

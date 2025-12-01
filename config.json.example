@@ -1,23 +1,28 @@
 {
   "_comment": "Light Shadowsocks Client - JSON Configuration Example",
 
+  "_name_comment": "Optional instance name for identification in logs and API responses",
+  "name": "my-proxy",
+
   "shadowsocks": {
     "server": "example.com:8388",
     "method": "aes-128-gcm",
     "password": "your-password",
+    "_comment_methods": "Supported cipher methods (auto-normalized to AEAD_ format):",
     "_supported_methods": [
       "aes-128-gcm",
       "aes-192-gcm",
       "aes-256-gcm",
       "chacha20-poly1305",
-      "chacha20-ietf-poly1305"
+      "chacha20-ietf-poly1305",
+      "xchacha20-poly1305"
     ],
     "timeout": 300,
-    "_plugin_example": "Uncomment the lines below to enable simple-obfs plugin",
+    "_comment_plugin": "Simple-obfs plugin for traffic obfuscation - uncomment to enable:",
     "_plugin": "simple-obfs",
     "_plugin_opts": {
-      "_obfs": "http or tls",
-      "_obfs-host": "www.bing.com"
+      "obfs": "http",
+      "obfs-host": "www.bing.com"
     }
   },
 

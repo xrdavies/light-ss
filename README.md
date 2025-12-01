@@ -173,6 +173,20 @@ chromium --proxy-server="http://127.0.0.1:8080"
 
 The configuration file supports both YAML and JSON formats. See `config.yaml.example` or `config.json.example` for complete examples.
 
+#### Instance Identification
+
+```yaml
+# Optional: Instance name for identification
+name: "my-hk-proxy"
+```
+
+The instance name helps identify your light-ss instance in:
+- Log messages (stats output)
+- API responses (health, version, stats, config endpoints)
+- Monitoring and debugging across multiple instances
+
+This is especially useful when running multiple light-ss instances and need to distinguish between them.
+
 #### Shadowsocks Settings
 
 ```yaml
@@ -192,8 +206,14 @@ shadowsocks:
 **Supported Ciphers:**
 - `AEAD_CHACHA20_POLY1305` (recommended)
 - `AEAD_AES_256_GCM`
+- `AEAD_AES_192_GCM`
 - `AEAD_AES_128_GCM`
-- `aes-128-gcm`, `aes-256-gcm`, `chacha20-poly1305` (auto-normalized)
+- `AEAD_XCHACHA20_POLY1305`
+
+**Alternative formats (auto-normalized):**
+- `aes-128-gcm`, `aes-192-gcm`, `aes-256-gcm`
+- `chacha20-poly1305`, `chacha20-ietf-poly1305`
+- `xchacha20-poly1305`
 
 #### Proxy Settings
 
@@ -370,14 +390,16 @@ api:
 Health check endpoint - always returns 200 OK when running
 ```bash
 curl http://127.0.0.1:8090/health
-# Response: {"status": "ok", "uptime": "2h30m15s"}
+# Response: {"name": "my-hk-proxy", "status": "ok", "uptime": "2h30m15s"}
+# Note: "name" field only included if instance name is configured
 ```
 
 #### GET /version
 Get version and build information
 ```bash
 curl http://127.0.0.1:8090/version
-# Response: {"version": "1.0.0", "commit": "abc123", "build_time": "2024-01-01"}
+# Response: {"name": "my-hk-proxy", "version": "1.0.0", "commit": "abc123", "build_time": "2024-01-01"}
+# Note: "name" field only included if instance name is configured
 ```
 
 #### GET /stats
@@ -389,6 +411,7 @@ curl -H "Authorization: Bearer secret123" http://127.0.0.1:8090/stats
 ```
 
 Response includes:
+- Instance name (if configured)
 - Connection counts (total, active, HTTP, SOCKS5)
 - Bandwidth (bytes sent/received)
 - Current speed (download/upload in bytes/sec)
@@ -409,6 +432,7 @@ curl "http://127.0.0.1:8090/speedtest?duration=30"
 Get current configuration (passwords sanitized)
 ```bash
 curl http://127.0.0.1:8090/config
+# Response includes instance name (if configured), server, cipher, plugin settings, and proxy configuration
 # Passwords replaced with "***"
 ```
 

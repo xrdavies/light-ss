@@ -13,24 +13,26 @@ import (
 
 // Server is the management API HTTP server
 type Server struct {
-	listen    string
-	token     string
-	manager   *server.Manager
-	collector *stats.Collector
-	speedTest *SpeedTest
+	listen     string
+	token      string
+	manager    *server.Manager
+	collector  *stats.Collector
+	speedTest  *SpeedTest
 	httpServer *http.Server
-	router    *http.ServeMux
+	router     *http.ServeMux
+	config     *config.Config // Full config for accessing instance name
 }
 
 // NewServer creates a new API server
-func NewServer(cfg config.APIConfig, mgr *server.Manager, collector *stats.Collector, speedTest *SpeedTest) *Server {
+func NewServer(cfg *config.Config, mgr *server.Manager, collector *stats.Collector, speedTest *SpeedTest) *Server {
 	s := &Server{
-		listen:    cfg.Listen,
-		token:     cfg.Token,
+		listen:    cfg.API.Listen,
+		token:     cfg.API.Token,
 		manager:   mgr,
 		collector: collector,
 		speedTest: speedTest,
 		router:    http.NewServeMux(),
+		config:    cfg,
 	}
 
 	// Register routes

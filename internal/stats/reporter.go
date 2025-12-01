@@ -9,16 +9,18 @@ import (
 
 // Reporter periodically reports statistics
 type Reporter struct {
-	collector *Collector
-	interval  time.Duration
-	cancel    context.CancelFunc
+	collector    *Collector
+	interval     time.Duration
+	cancel       context.CancelFunc
+	instanceName string
 }
 
 // NewReporter creates a new stats reporter
-func NewReporter(collector *Collector, interval int) *Reporter {
+func NewReporter(collector *Collector, interval int, instanceName string) *Reporter {
 	return &Reporter{
-		collector: collector,
-		interval:  time.Duration(interval) * time.Second,
+		collector:    collector,
+		interval:     time.Duration(interval) * time.Second,
+		instanceName: instanceName,
 	}
 }
 
@@ -53,7 +55,7 @@ func (r *Reporter) Stop() {
 func (r *Reporter) report() {
 	stats := r.collector.GetStats()
 
-	slog.Info("Statistics",
+	logAttrs := []any{
 		"total_connections", stats.TotalConnections,
 		"active_connections", stats.ActiveConnections,
 		"http_connections", stats.HTTPConnections,
@@ -63,7 +65,14 @@ func (r *Reporter) report() {
 		"upload_speed", formatSpeed(stats.UploadSpeed),
 		"download_speed", formatSpeed(stats.DownloadSpeed),
 		"uptime", stats.Uptime.Round(time.Second).String(),
-	)
+	}
+
+	// Add instance name if configured
+	if r.instanceName != "" {
+		logAttrs = append([]any{"instance", r.instanceName}, logAttrs...)
+	}
+
+	slog.Info("Statistics", logAttrs...)
 }
 
 // formatSpeed formats speed into a human-readable string

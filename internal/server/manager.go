@@ -45,7 +45,7 @@ func NewManager(cfg *config.Config) (*Manager, error) {
 	var reporter *stats.Reporter
 	if cfg.Stats.Enabled {
 		collector = stats.NewCollector()
-		reporter = stats.NewReporter(collector, cfg.Stats.Interval)
+		reporter = stats.NewReporter(collector, cfg.Stats.Interval, cfg.Name)
 		slog.Info("Statistics collection enabled", "interval", cfg.Stats.Interval)
 	}
 

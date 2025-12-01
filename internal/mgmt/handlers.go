@@ -13,25 +13,28 @@ import (
 
 // Response structures
 type HealthResponse struct {
+	Name   string `json:"name,omitempty"` // Instance name
 	Status string `json:"status"`
 	Uptime string `json:"uptime"`
 }
 
 type VersionResponse struct {
+	Name      string `json:"name,omitempty"` // Instance name
 	Version   string `json:"version"`
 	Commit    string `json:"commit,omitempty"`
 	BuildTime string `json:"build_time,omitempty"`
 }
 
 type StatsResponse struct {
+	Name              string `json:"name,omitempty"` // Instance name
 	TotalConnections  int64  `json:"total_connections"`
 	ActiveConnections int64  `json:"active_connections"`
 	HTTPConnections   int64  `json:"http_connections"`
 	SOCKS5Connections int64  `json:"socks5_connections"`
 	BytesSent         int64  `json:"bytes_sent"`
 	BytesReceived     int64  `json:"bytes_received"`
-	UploadSpeed       int64  `json:"upload_speed"`       // bytes/sec
-	DownloadSpeed     int64  `json:"download_speed"`     // bytes/sec
+	UploadSpeed       int64  `json:"upload_speed"`   // bytes/sec
+	DownloadSpeed     int64  `json:"download_speed"` // bytes/sec
 	Uptime            string `json:"uptime"`
 }
 
@@ -42,13 +45,14 @@ type SpeedTestResponse struct {
 }
 
 type ConfigResponse struct {
-	Server    string            `json:"server"`
-	Cipher    string            `json:"cipher"`
-	Plugin    string            `json:"plugin,omitempty"`
+	Name       string            `json:"name,omitempty"` // Instance name
+	Server     string            `json:"server"`
+	Cipher     string            `json:"cipher"`
+	Plugin     string            `json:"plugin,omitempty"`
 	PluginOpts map[string]string `json:"plugin_opts,omitempty"`
-	Proxies   string            `json:"proxies,omitempty"`
-	HTTP      string            `json:"http,omitempty"`
-	SOCKS5    string            `json:"socks5,omitempty"`
+	Proxies    string            `json:"proxies,omitempty"`
+	HTTP       string            `json:"http,omitempty"`
+	SOCKS5     string            `json:"socks5,omitempty"`
 }
 
 type ReloadRequest struct {
@@ -82,6 +86,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, HealthResponse{
+		Name:   s.config.Name,
 		Status: "ok",
 		Uptime: uptime,
 	})
@@ -96,6 +101,7 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Get actual version from build flags
 	writeJSON(w, http.StatusOK, VersionResponse{
+		Name:      s.config.Name,
 		Version:   "1.0.0",
 		Commit:    "dev",
 		BuildTime: time.Now().Format(time.RFC3339),
@@ -116,6 +122,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 
 	stats := s.collector.GetStats()
 	writeJSON(w, http.StatusOK, StatsResponse{
+		Name:              s.config.Name,
 		TotalConnections:  stats.TotalConnections,
 		ActiveConnections: stats.ActiveConnections,
 		HTTPConnections:   stats.HTTPConnections,
@@ -177,6 +184,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	cfg := s.manager.GetConfig()
 	response := ConfigResponse{
+		Name:   s.config.Name,
 		Server: cfg.Shadowsocks.Server,
 		Cipher: cfg.Shadowsocks.Cipher,
 		Plugin: cfg.Shadowsocks.Plugin,

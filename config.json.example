@@ -2,8 +2,7 @@
   "_comment": "Light Shadowsocks Client - JSON Configuration Example",
 
   "shadowsocks": {
-    "server": "example.com",
-    "port": 8388,
+    "server": "example.com:8388",
     "method": "aes-128-gcm",
     "password": "your-password",
     "_supported_methods": [

@@ -47,12 +47,28 @@ cp config.yaml.example config.yaml
 
 ```yaml
 shadowsocks:
-  server: "your-server.com:8388"
-  password: "your-password"
+  server: "example.com:8388"
+  password: "your-strong-password"
   cipher: "AEAD_CHACHA20_POLY1305"
+  timeout: 300
 
 # Unified mode - single port for both HTTP and SOCKS5
 proxies: "127.0.0.1:1080"
+```
+
+Or use JSON format (`config.json`):
+
+```json
+{
+  "shadowsocks": {
+    "server": "example.com",
+    "port": 8388,
+    "method": "aes-128-gcm",
+    "password": "your-password",
+    "timeout": 300
+  },
+  "proxies": "127.0.0.1:1080"
+}
 ```
 
 3. Start the client:
@@ -67,9 +83,9 @@ proxies: "127.0.0.1:1080"
 
 ```bash
 ./light-ss start \
-  --server your-server.com \
+  --server example.com \
   --port 8388 \
-  --password your-password \
+  --password your-strong-password \
   --method aes-128-gcm \
   --proxies 127.0.0.1:1080
 ```
@@ -78,9 +94,9 @@ proxies: "127.0.0.1:1080"
 
 ```bash
 ./light-ss start \
-  --server your-server.com \
+  --server example.com \
   --port 8388 \
-  --password your-password \
+  --password your-strong-password \
   --method aes-128-gcm \
   --plugin simple-obfs \
   --plugin-obfs http \
@@ -162,7 +178,7 @@ The configuration file supports both YAML and JSON formats. See `config.yaml.exa
 ```yaml
 shadowsocks:
   server: "example.com:8388"          # Server address and port
-  password: "your-password"           # Server password
+  password: "your-strong-password"    # Server password
   cipher: "AEAD_CHACHA20_POLY1305"   # Encryption cipher
   timeout: 300                        # Connection timeout (seconds)
 
@@ -297,7 +313,7 @@ You can override configuration values using environment variables:
 
 ```bash
 export LIGHT_SS_SERVER="example.com:8388"
-export LIGHT_SS_PASSWORD="your-password"
+export LIGHT_SS_PASSWORD="your-strong-password"
 export LIGHT_SS_CIPHER="AEAD_CHACHA20_POLY1305"
 export LIGHT_SS_HTTP_LISTEN="127.0.0.1:8080"
 export LIGHT_SS_SOCKS5_LISTEN="127.0.0.1:1080"
@@ -510,7 +526,7 @@ proxies:
 - Verify shadowsocks server is running and accessible
 - Check cipher matches server configuration
 - Ensure password is correct
-- Test server connectivity: `telnet your-server.com 8388`
+- Test server connectivity: `telnet example.com 8388`
 
 ### Proxy Not Working
 

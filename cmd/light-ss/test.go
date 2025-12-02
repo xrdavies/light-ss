@@ -145,28 +145,17 @@ func runTest(cmd *cobra.Command, args []string) error {
 		Timestamp: time.Now(),
 	}
 
-	if testLatencyOnly {
-		// Only test latency
-		latency, err := testLatency(ssClient)
-		if err != nil {
-			result.Error = err.Error()
-		} else {
-			result.Success = true
-			result.LatencyMS = latency
-		}
+	// Run speed test (with or without download test)
+	speedTest := mgmt.NewSpeedTest(ssClient)
+	testResult, err := speedTest.Run(testDuration, testLatencyOnly)
+	if err != nil {
+		result.Error = err.Error()
 	} else {
-		// Full speed test
-		speedTest := mgmt.NewSpeedTest(ssClient)
-		testResult, err := speedTest.Run(testDuration)
-		if err != nil {
-			result.Error = err.Error()
-		} else {
-			result.Success = true
-			result.LatencyMS = testResult.LatencyMS
-			result.DownloadSpeedBPS = testResult.DownloadSpeed
-			// Convert to Mbps
-			result.DownloadSpeedMbps = float64(testResult.DownloadSpeed) * 8 / (1024 * 1024)
-		}
+		result.Success = true
+		result.LatencyMS = testResult.LatencyMS
+		result.DownloadSpeedBPS = testResult.DownloadSpeed
+		// Convert to Mbps (will be 0 in latency-only mode)
+		result.DownloadSpeedMbps = float64(testResult.DownloadSpeed) * 8 / (1024 * 1024)
 	}
 
 	// Output result
@@ -186,20 +175,6 @@ type TestResult struct {
 	DownloadSpeedMbps float64   `json:"download_speed_mbps,omitempty"`
 	Error             string    `json:"error,omitempty"`
 	Timestamp         time.Time `json:"timestamp"`
-}
-
-// testLatency tests connection latency only
-func testLatency(ssClient *shadowsocks.Client) (int64, error) {
-	// Test connection by dialing a common server
-	start := time.Now()
-	conn, err := ssClient.Dial("tcp", "www.google.com:80")
-	if err != nil {
-		return 0, fmt.Errorf("connection failed: %w", err)
-	}
-	defer conn.Close()
-
-	latency := time.Since(start).Milliseconds()
-	return latency, nil
 }
 
 // outputJSON outputs result as JSON

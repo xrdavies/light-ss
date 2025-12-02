@@ -155,8 +155,14 @@ func (s *Server) handleSpeedTest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Parse latency_only parameter (default false)
+	latencyOnly := false
+	if latencyOnlyStr := r.URL.Query().Get("latency_only"); latencyOnlyStr == "true" || latencyOnlyStr == "1" {
+		latencyOnly = true
+	}
+
 	// Run speed test
-	result, err := s.speedTest.Run(duration)
+	result, err := s.speedTest.Run(duration, latencyOnly)
 	if err != nil {
 		slog.Error("Speed test failed", "error", err)
 		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("speed test failed: %v", err))

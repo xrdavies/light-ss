@@ -28,20 +28,38 @@ func NewSpeedTest(ssClient *shadowsocks.Client) *SpeedTest {
 }
 
 // Run executes a speed test for the specified duration
-func (st *SpeedTest) Run(durationSec int) (*SpeedTestResult, error) {
-	// Use a public speed test file (example: 10MB file from cloudflare)
-	testURL := "https://speed.cloudflare.com/__down?bytes=10000000"
+// If latencyOnly is true, only measures latency without downloading test data
+func (st *SpeedTest) Run(durationSec int, latencyOnly bool) (*SpeedTestResult, error) {
+	var latency int64
+	var err error
 
-	// Measure latency
+	if latencyOnly {
+		// For latency-only mode, use google.com for faster and more reliable testing
+		latencyStart := time.Now()
+		conn, err := st.ssClient.Dial("tcp", "www.google.com:80")
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect: %w", err)
+		}
+		defer conn.Close()
+		latency = time.Since(latencyStart).Milliseconds()
+
+		return &SpeedTestResult{
+			DownloadSpeed: 0, // No download test performed
+			LatencyMS:     latency,
+		}, nil
+	}
+
+	// For full speed test, measure latency to cloudflare
 	latencyStart := time.Now()
 	conn, err := st.ssClient.Dial("tcp", "speed.cloudflare.com:443")
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
 	defer conn.Close()
-	latency := time.Since(latencyStart).Milliseconds()
+	latency = time.Since(latencyStart).Milliseconds()
 
-	// For now, perform a simple HTTP download test
+	// Perform download speed test
+	testURL := "https://speed.cloudflare.com/__down?bytes=10000000"
 	start := time.Now()
 
 	// Create HTTP request

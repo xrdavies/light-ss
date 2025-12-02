@@ -5,14 +5,14 @@ A lightweight shadowsocks client written in Go that provides local HTTP/HTTPS an
 ## Features
 
 - **Shadowsocks Client**: Connect to any shadowsocks server with AEAD cipher support
-- **Server Testing**: Test SS servers without starting the daemon - measure latency and speed
+- **Server Testing**: Test SS servers without starting the daemon - measure latency and speed (latency-only mode available for bandwidth savings)
 - **Unified Proxy Mode**: Single port for HTTP/HTTPS and SOCKS5 (like Clash)
 - **Separate Proxy Mode**: Dedicated ports for HTTP and SOCKS5
 - **Simple-obfs Plugin**: HTTP and TLS obfuscation support
 - **Command-line Parameters**: Run without config files - perfect for automation
 - **Config Converters**: Import from ss-local and Clash configurations
 - **Statistics Monitoring**: Track connections and bandwidth usage
-- **Management API**: REST API for monitoring, speed testing, and hot-reload
+- **Management API**: REST API for monitoring, speed testing (with latency-only mode), and hot-reload
 - **Graceful Shutdown**: Proper cleanup on exit signals
 - **Flexible Configuration**: YAML/JSON config files, environment variables, or CLI params
 
@@ -213,7 +213,7 @@ Test a shadowsocks server without starting the full daemon. This is useful for:
 - `-c, --config` - Load from config file
 - `--timeout` - Connection timeout in seconds (default: 10)
 - `--duration` - Speed test duration in seconds (default: 10)
-- `--latency-only` - Only test latency, skip speed test
+- `--latency-only` - Only test connection latency, skip download speed test. Saves bandwidth (~10MB per test). Uses `www.google.com:80` for faster testing.
 - `--json` - Output result as JSON
 - `--plugin` - Plugin name (e.g., simple-obfs)
 - `--plugin-obfs` - Obfuscation mode (http or tls)
@@ -525,8 +525,20 @@ curl http://127.0.0.1:8090/speedtest
 
 # Custom duration
 curl "http://127.0.0.1:8090/speedtest?duration=30"
+
+# Latency-only test (saves bandwidth, no download test)
+curl "http://127.0.0.1:8090/speedtest?latency_only=true"
+
+# Combined parameters
+curl "http://127.0.0.1:8090/speedtest?duration=5&latency_only=true"
+
 # Response: {"download_speed": 1234567, "latency_ms": 45, "test_duration_sec": 30}
+# Note: download_speed will be 0 when latency_only=true
 ```
+
+**Query Parameters:**
+- `duration` - Test duration in seconds (1-300, default: 10). Only used for download speed test.
+- `latency_only` - If `true` or `1`, only measures connection latency without downloading test data. Uses `www.google.com:80` for faster testing. If `false` or omitted, performs full speed test using `speed.cloudflare.com`.
 
 #### GET /config
 Get current configuration (passwords sanitized)

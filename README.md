@@ -5,6 +5,7 @@ A lightweight shadowsocks client written in Go that provides local HTTP/HTTPS an
 ## Features
 
 - **Shadowsocks Client**: Connect to any shadowsocks server with AEAD cipher support
+- **Server Testing**: Test SS servers without starting the daemon - measure latency and speed
 - **Unified Proxy Mode**: Single port for HTTP/HTTPS and SOCKS5 (like Clash)
 - **Separate Proxy Mode**: Dedicated ports for HTTP and SOCKS5
 - **Simple-obfs Plugin**: HTTP and TLS obfuscation support
@@ -133,6 +134,105 @@ Or use JSON format (`config.json`):
 
 # Print to stdout (JSON format)
 ./light-ss convert --from ss-local --input ss-local.json
+```
+
+### Test Shadowsocks Servers
+
+Test a shadowsocks server without starting the full daemon. This is useful for:
+- Validating server credentials before use
+- Testing server availability and performance
+- Benchmarking multiple servers
+- Integration with automation tools
+
+**Basic Test:**
+```bash
+# Test with command-line parameters
+./light-ss test \
+  -s server.com:8388 \
+  --password your-password \
+  -m aes-128-gcm
+
+# Output:
+# ✅ Test successful
+# Server:   server.com:8388
+# Cipher:   aes-128-gcm
+# Latency:  45ms
+# Speed:    127.78 Mbps
+```
+
+**Test from Config File:**
+```bash
+./light-ss test -c config.yaml
+```
+
+**Quick Latency Check (Skip Speed Test):**
+```bash
+./light-ss test \
+  -s server.com:8388 \
+  --password your-password \
+  -m aes-128-gcm \
+  --latency-only
+```
+
+**JSON Output (For Automation):**
+```bash
+./light-ss test \
+  -s server.com:8388 \
+  --password your-password \
+  -m aes-128-gcm \
+  --json
+
+# Output:
+# {
+#   "server": "server.com:8388",
+#   "cipher": "aes-128-gcm",
+#   "success": true,
+#   "latency_ms": 45,
+#   "download_speed_bps": 16777216,
+#   "download_speed_mbps": 127.78,
+#   "timestamp": "2025-12-02T10:30:00Z"
+# }
+```
+
+**With Plugin:**
+```bash
+./light-ss test \
+  -s server.com:8388 \
+  --password your-password \
+  -m aes-128-gcm \
+  --plugin simple-obfs \
+  --plugin-obfs http \
+  --plugin-host www.bing.com
+```
+
+**Test Flags:**
+- `-s, --server` - Server address (with or without port)
+- `-p, --port` - Server port (if not in server address)
+- `--password` - Server password
+- `-m, --method` - Encryption method
+- `-c, --config` - Load from config file
+- `--timeout` - Connection timeout in seconds (default: 10)
+- `--duration` - Speed test duration in seconds (default: 10)
+- `--latency-only` - Only test latency, skip speed test
+- `--json` - Output result as JSON
+- `--plugin` - Plugin name (e.g., simple-obfs)
+- `--plugin-obfs` - Obfuscation mode (http or tls)
+- `--plugin-host` - Obfuscation host header
+
+**Use Cases:**
+```bash
+# Test multiple servers and compare
+for server in server1.com:8388 server2.com:8388; do
+  ./light-ss test -s $server --password pass -m aes-128-gcm --json
+done
+
+# Validate subscription servers
+cat servers.txt | while read server; do
+  ./light-ss test -s $server --password pass -m aes-128-gcm --latency-only
+done
+
+# CI/CD health check
+./light-ss test -c config.yaml --json | jq -e '.success == true'
 ```
 
 ### Testing the Proxies

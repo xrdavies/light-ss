@@ -24,4 +24,5 @@ func Execute() {
 
 func init() {
 	rootCmd.AddCommand(startCmd)
+	rootCmd.AddCommand(testCmd)
 }
